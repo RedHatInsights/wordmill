@@ -1,0 +1,48 @@
+version: '2'
+
+apis:
+  - agents
+  - inference
+  - safety
+  - vector_io
+  - tool_runtime
+
+image_name: ollama
+
+providers:
+  inference:
+    - provider_id: ollama
+      provider_type: remote::ollama
+      config:
+        url: http://localhost:11434
+  agents:
+    - provider_id: meta-reference
+      provider_type: inline::meta-reference
+      config:
+        persistence_store:
+          type: sqlite
+          db_path: /tmp/agents_store.db
+  safety:
+    - provider_id: llama-guard
+      provider_type: inline::llama-guard
+      config:
+        excluded_categories: []
+  vector_io:
+    - provider_id: faiss
+      provider_type: inline::faiss
+      config:
+        kvstore:
+          type: sqlite
+          db_path: /tmp/agents_store.db
+
+kvstore:
+  provider_id: in_memory_sqlite
+  provider_type: sqlite
+  config:
+    path: ":memory:"
+
+server:
+  auth: null
+  port: 8321
+  tls_certfile: null
+  tls_keyfile: null

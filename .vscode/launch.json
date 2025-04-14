@@ -1,0 +1,22 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug Backend",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "flask",
+            "env": {
+                "INFERENCE_MODEL": "meta-llama/Llama-3.2-3B-Instruct",
+                "LLAMA_STACK_PORT": "8321",
+            },
+            "args": [
+                "run",
+                "--host=0.0.0.0",
+                "--port=8000"
+            ],
+            "cwd": "${workspaceFolder}/src",
+            "jinja": true
+        },
+    ]
+}
