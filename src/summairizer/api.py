@@ -8,7 +8,6 @@ from .llm import llm_client
 
 class SummairizeApi(Resource):
     def post(self):
-
         documents = request.get_json()
 
         if not isinstance(documents, list):
@@ -22,6 +21,7 @@ class SummairizeApi(Resource):
         response = llm_client.summarize(context_documents)
 
         return {"summary": response}, 200
+
 
 class HealthCheckApi(Resource):
     def get(self):

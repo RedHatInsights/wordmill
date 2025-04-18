@@ -3,8 +3,8 @@ from flask import Flask
 from flask_cors import CORS
 from flask_restful import Api
 
+
 def create_app():
-    
     app = Flask("summairize")
     app.config["CORS_HEADER"] = "Content-Type"
     CORS(app)
@@ -13,6 +13,7 @@ def create_app():
     _initialize_routes(api)
 
     return app
+
 
 def _initialize_routes(api: Api):
     api.add_resource(SummairizeApi, "/", methods=["POST"])
