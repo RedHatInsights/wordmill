@@ -7,15 +7,8 @@ name = "pypi"
 flask = "*"
 flask-restful = "*"
 flask-cors = "*"
-llama-stack-client = "*"
-llama-stack = "*"
-aiosqlite = "*"
-faiss-cpu = "*"
-ollama = "*"
-datasets = "*"
-opentelemetry-exporter-otlp-proto-http = "*"
-mcp = "*"
-autoevals = "*"
+openai = "*"
+python-dotenv = "*"
 
 [dev-packages]
 pytest = "*"
@@ -24,6 +17,7 @@ pre-commit = "*"
 summairizer = {editable = true, path = "."}
 flake8 = "*"
 ipython = "*"
+requests = "*"
 
 [requires]
 python_version = "3.12"

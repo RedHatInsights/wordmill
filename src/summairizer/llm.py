@@ -1,45 +1,53 @@
 import os
 import uuid
 
-from llama_stack_client import Agent, AgentEventLogger
-from llama_stack.distribution.library_client import LlamaStackAsLibraryClient
+from openai import OpenAI
 
-# LLM_BASE_URL = os.getenv("LLM_BASE_URL", "http://localhost:8321")
-LLM_MODEL_NAME = os.getenv("LLM_MODEL_NAME", "mistral-7b-instruct")
-SUMMARY_PROMPT = """
-    You are received a list of documents in JSON format. Your task is to generate a comprehensive and highly readable summary of all the information contained within these documents. Format the summary in Markdown for clarity and structure.
-"""
+
+def _get_env_vars():
+    model_name = os.environ.get("LLM_MODEL_NAME")
+    api_key = os.environ.get("LLM_API_KEY")
+    base_url = os.environ.get("LLM_BASE_URL")
+
+    if not all([model_name, api_key, base_url]):
+        raise ValueError(
+            "provide the following env vars to the app: LLM_MODEL_NAME, LLM_API_KEY, LLM_BASE_URL"
+        )
+
+    return model_name, api_key, base_url
+
+
+PROMPT = (
+    "You are a helpful assistant who summarizes technical incident reports written for site "
+    "reliability engineers. You are given a document in JSON format. Your task is to generate a "
+    "comprehensive and highly readable summary of all the information pertaining to the incident. "
+    "Format the summary in Markdown for clarity and structure.\n\n"
+    "--- Begin JSON document ---\n\n{document}\n\n--- End JSON document ---"
+)
 
 
 class LlmClient:
     def __init__(self):
-        self.client =  LlamaStackAsLibraryClient(
-            os.path.join(
-                os.path.dirname(os.path.abspath(__file__)),
-                "../../custom-template.yaml"
-            )
-        )
-        self.client.initialize()
+        self.model_name, self.api_key, self.base_url = _get_env_vars()
 
-        self.agent = Agent(
-            self.client,
-            model=LLM_MODEL_NAME,
-            instructions="You are an agent that generate summaries of documents",
+        self.client = OpenAI(
+            api_key=self.api_key,
+            base_url=self.base_url,
         )
 
-    def summarize(self, documents):
-        try:
-            session_id = self.agent.create_session(session_name=str(uuid.uuid4()))
-            response = self.agent.create_turn(
-                session_id=session_id,
-                messages=[{"role": "user", "content": SUMMARY_PROMPT}],
-                documents=documents,
-                stream=False,
-            )
-            return response.output_message.content
-        except Exception as e:
-            print(f"Error creating the agent turn: {e}")
-            raise
+    def summarize(self, document):
+        messages = [
+            {
+                "role": "user",
+                "content": PROMPT.format(document=document),
+            },
+        ]
+
+        completion = self.client.chat.completions.create(
+            model=self.model_name, messages=messages
+        )
+
+        return completion.choices[0].message.content
 
 
 llm_client = LlmClient()
