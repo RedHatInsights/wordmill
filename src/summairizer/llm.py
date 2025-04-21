@@ -17,14 +17,45 @@ def _get_env_vars():
     return model_name, api_key, base_url
 
 
-PROMPT = (
-    "You are a helpful assistant who summarizes technical incident reports written for site "
-    "reliability engineers. You are given a document in JSON format. Your task is to generate a "
-    "comprehensive and highly readable summary of all the information pertaining to the incident. "
-    "Format the summary in Markdown for clarity and structure.\n\n"
-    "--- Begin JSON document ---\n\n{document}\n\n--- End JSON document ---"
-)
+PROMPT = """
+You are an assistant helping site reliability engineers summarize technical incidents from JSON data.
 
+The JSON object describes a technical incident with fields such as:
+- start_time
+- stop_time
+- resolved_time
+- current_status
+- engineers (a list of people who worked on the incident)
+- root_cause_analysis (text)
+- comments (a list of troubleshooting notes and updates from engineers)
+
+Your task is to convert the JSON into a concise Markdown summary for engineering managers. Format the summary with the following structure:
+
+## 🔧 Incident Summary
+
+**Status:** {current_status}
+**Start Time:** {start_time}
+**Stop Time:** {stop_time}
+**Resolved Time:** {resolved_time}
+**Engineers Involved:** {comma-separated list of engineers}
+
+---
+
+## 📋 Root Cause Analysis
+{root_cause_analysis}
+
+---
+
+## 🧪 Troubleshooting Timeline
+Summarize key moments from the comments field, showing how the incident was diagnosed and resolved. Use bullet points.
+
+---
+
+### Here is the JSON:
+<your_json_here>
+
+### Now generate the Markdown summary:
+"""
 
 class LlmClient:
     def __init__(self):
