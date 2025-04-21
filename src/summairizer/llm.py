@@ -13,15 +13,12 @@ SUMMARY_PROMPT = """
 
 class LlmClient:
     def __init__(self):
-        self.client = LlamaStackAsLibraryClient("ollama")
-        """
         self.client =  LlamaStackAsLibraryClient(
             os.path.join(
                 os.path.dirname(os.path.abspath(__file__)),
-                "../../custom-template.yaml"
+                "../../config.yaml"
             )
         )
-        """
         self.client.initialize()
 
         self.agent = Agent(

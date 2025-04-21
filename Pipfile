@@ -18,12 +18,12 @@ mcp = "*"
 autoevals = "*"
 
 [dev-packages]
-ipython = "*"
 pytest = "*"
 ruff = "*"
 pre-commit = "*"
 summairizer = {editable = true, path = "."}
 flake8 = "*"
+ipython = "*"
 
 [requires]
 python_version = "3.12"

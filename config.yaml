@@ -1,0 +1,6 @@
+inference:
+  - provider_id: vllm
+    provider_type: remote::vllm
+    config:
+        url: https://mistral-7b-instruct-v0-3-maas-apicast-production.apps.prod.rhoai.rh-aiservices-bu.com:443/v1
+        api_token: REPLACE
