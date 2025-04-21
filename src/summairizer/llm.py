@@ -5,7 +5,7 @@ from llama_stack_client import Agent, AgentEventLogger
 from llama_stack.distribution.library_client import LlamaStackAsLibraryClient
 
 # LLM_BASE_URL = os.getenv("LLM_BASE_URL", "http://localhost:8321")
-LLM_MODEL_NAME = os.getenv("LLM_MODEL_NAME", "llama3.2:3b")
+LLM_MODEL_NAME = os.getenv("LLM_MODEL_NAME", "mistral-7b-instruct")
 SUMMARY_PROMPT = """
     You are received a list of documents in JSON format. Your task is to generate a comprehensive and highly readable summary of all the information contained within these documents. Format the summary in Markdown for clarity and structure.
 """
