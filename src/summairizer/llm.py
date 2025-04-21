@@ -16,7 +16,7 @@ class LlmClient:
         self.client =  LlamaStackAsLibraryClient(
             os.path.join(
                 os.path.dirname(os.path.abspath(__file__)),
-                "../../config.yaml"
+                "../../custom-template.yaml"
             )
         )
         self.client.initialize()
