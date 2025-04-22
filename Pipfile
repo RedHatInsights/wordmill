@@ -10,6 +10,8 @@ flask-cors = "*"
 openai = "*"
 python-dotenv = "*"
 rich = "*"
+flask-caching = "*"
+summairizer = {file = "."}
 
 [dev-packages]
 pytest = "*"

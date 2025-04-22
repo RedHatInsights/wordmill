@@ -92,22 +92,26 @@ class LlmResponseHandler:
         self.stream = stream
         self.exception = None
 
-    def append(self, content: str) -> None:
-        self.content += content
-
-    def set_done(self) -> None:
-        self.done = True
+    def to_dict(self):
+        '''
+        Translate handler status to plain dictionary for use with caches
+        '''
+        return {"done": self.done, "content": self.content, "exception": str(self.exception) if self.exception else None}
 
     def _worker(self):
+        log.debug("llm handler begin processing stream")
+
         try:
             for chunk in self.stream:
                 if chunk.choices:
-                    self.append(chunk.choices[0].delta.content)
+                    self.content += chunk.choices[0].delta.content
         except Exception as exc:
-            log.exception("error handling llm response")
+            log.exception("llm handler hit unexpected error")
             self.exception = exc
         finally:
-            self.set_done()
+            self.done = True
+
+        log.debug("llm handler done")
 
 
 class LlmClient:

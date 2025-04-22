@@ -1,9 +1,11 @@
-from .api import SummarizeApi, HealthCheckApi
+import logging
+
 from flask import Flask
 from flask_cors import CORS
 from flask_restful import Api
 
-import logging
+from .resources.routes import initialize_routes
+from .cache import cache
 
 
 def create_app():
@@ -16,12 +18,9 @@ def create_app():
     app.config["CORS_HEADER"] = "Content-Type"
     CORS(app)
 
+    cache.init_app(app)
+
     api = Api(app)
-    _initialize_routes(api)
+    initialize_routes(api)
 
     return app
-
-
-def _initialize_routes(api: Api):
-    api.add_resource(SummarizeApi, "/summarize", methods=["POST"])
-    api.add_resource(HealthCheckApi, "/health", methods=["GET"])
