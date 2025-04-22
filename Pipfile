@@ -9,6 +9,7 @@ flask-restful = "*"
 flask-cors = "*"
 openai = "*"
 python-dotenv = "*"
+rich = "*"
 
 [dev-packages]
 pytest = "*"

@@ -1,10 +1,21 @@
 import os
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 
 from openai import OpenAI
+from openai.lib.streaming.chat import ChatCompletionStream
+
+from dotenv import load_dotenv
+
+import logging
+
+
+log = logging.getLogger(__name__)
 
 
 def _get_env_vars():
+    load_dotenv()
+
     model_name = os.environ.get("LLM_MODEL_NAME")
     api_key = os.environ.get("LLM_API_KEY")
     base_url = os.environ.get("LLM_BASE_URL")
@@ -42,16 +53,19 @@ Each event object contains:
 
 Any other fields in the JSON that are not mentioned above can be ignored.
 
-Your task is to convert the JSON into a concise Markdown summary for engineering managers. Format the summary with the following structure:
+Your task is to convert the JSON into a concise Markdown summary for engineering managers. Convert any ISO timestamps encounter using a human-readable date with the format: 'Month Day, Year Hour:Minute:Second Timezone' (e.g., 'April 22, 2025 14:30:15 UTC'). Format the summary with the following structure:
 
-## 🔧 Incident Details: {{incident_id}}
+# Summary of Incident {{incident_id}}
 
-**Status:** {{status}}
-**Created at:** {{created_at}}
-**Owner:** {{incident_owner}}
-**Resolved at:** {{resolved_time}}
-**Engineers Involved:** {{bullet list of participants}}
-**Private:** {{private}}
+## 🔧 Incident Details
+
+- **Products Impacted:** {{bullet list of products}}
+- **Status:** {{status}}
+- **Private:** {{private}}
+- **Created at:** {{created_at}}
+- **Owner:** {{incident_owner}}
+- **Resolved at:** {{resolved_at}}
+- **Engineers Involved:** {{bullet list of participants}}
 
 ---
 
@@ -61,7 +75,7 @@ Your task is to convert the JSON into a concise Markdown summary for engineering
 ---
 
 ## 🧪 Troubleshooting Timeline
-Summarize key moments from the incident events, showing how the incident was diagnosed and resolved. Use bullet points.
+Summarize key moments from the incident events, showing how the incident was diagnosed and resolved. Use bullet points. If the incident status changed, report the time this occurred. If an event note provides a URL link for a Slack workspace, a Google Docs document, or issues.redhat.com, please include the full link (but you can ignore dynatrace links).
 
 ---
 
@@ -70,6 +84,30 @@ Summarize key moments from the incident events, showing how the incident was dia
 
 ### Now generate the Markdown summary:
 """
+
+class LlmResponseHandler:
+    def __init__(self, stream: ChatCompletionStream):
+        self.done = False
+        self.content = ""
+        self.stream = stream
+        self.exception = None
+
+    def append(self, content: str) -> None:
+        self.content += content
+
+    def set_done(self) -> None:
+        self.done = True
+
+    def _worker(self):
+        try:
+            for chunk in self.stream:
+                if chunk.choices:
+                    self.append(chunk.choices[0].delta.content)
+        except Exception as exc:
+            log.exception("error handling llm response")
+            self.exception = exc
+        finally:
+            self.set_done()
 
 
 class LlmClient:
@@ -81,6 +119,8 @@ class LlmClient:
             base_url=self.base_url,
         )
 
+        self.executor = ThreadPoolExecutor(max_workers=3)
+
     def summarize(self, document):
         messages = [
             {
@@ -89,11 +129,13 @@ class LlmClient:
             },
         ]
 
-        completion = self.client.chat.completions.create(
-            model=self.model_name, messages=messages
+        stream = self.client.chat.completions.create(
+            model=self.model_name, messages=messages, stream=True
         )
 
-        return completion.choices[0].message.content
+        handler = LlmResponseHandler(stream)
+        self.executor.submit(handler._worker)
+        return handler
 
 
 llm_client = LlmClient()

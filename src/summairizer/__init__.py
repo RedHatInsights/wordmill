@@ -1,4 +1,4 @@
-from .api import SummairizeApi, HealthCheckApi
+from .api import SummarizeApi, HealthCheckApi
 from flask import Flask
 from flask_cors import CORS
 from flask_restful import Api
@@ -23,5 +23,5 @@ def create_app():
 
 
 def _initialize_routes(api: Api):
-    api.add_resource(SummairizeApi, "/", methods=["POST"])
+    api.add_resource(SummarizeApi, "/summarize", methods=["POST"])
     api.add_resource(HealthCheckApi, "/health", methods=["GET"])

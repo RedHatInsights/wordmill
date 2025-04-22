@@ -3,15 +3,25 @@ import json
 import os
 import sys
 import re
+import time
 
+from rich.markdown import Markdown
+from rich.console import Console
+from rich.spinner import Spinner
+from rich.json import JSON
+from rich.logging import RichHandler
+from rich.traceback import install
 
+from summairizer.llm import llm_client
+
+import logging
+
+WEBRCA_V1_API_BASE_URL = os.environ.get("WEBRCA_V1_API_BASE_URL", "https://api.openshift.com/api/web-rca/v1").lstrip("/")
 WEBRCA_TOKEN = os.environ.get("WEBRCA_TOKEN")
 
-BASE_URL = "https://api.openshift.com/api/web-rca/v1"
 
-
-def _get(api_path: str, params: dict) -> requests.Response:
-    url = f"{BASE_URL}{api_path}"
+def _get(api_path: str, params: dict) -> dict:
+    url = f"{WEBRCA_V1_API_BASE_URL}{api_path}"
     headers = {"Authorization": f"Bearer {WEBRCA_TOKEN}"}
     response = requests.get(url, headers=headers, params=params)
     response.raise_for_status()
@@ -41,12 +51,13 @@ def _parse_incident(incident: dict) -> None:
     )
     _filter_by_keys(incident, desired_keys)
     _filter_by_keys(incident["creator"], ("name",))
-    _filter_by_keys(incident["incident_owner"], ("name",))
+    if "incident_owner" in incident:
+        _filter_by_keys(incident["incident_owner"], ("name",))
     for participant in incident.get("participants", {}):
         _filter_by_keys(participant, ("name",))
 
 
-def _cleanup_event_note(text):
+def _cleanup_event_note(text: str) -> str:
     # make sure code block syntax is surrounded by newlines
     text = re.sub('```', '\n```\n', text)
 
@@ -81,11 +92,11 @@ def _parse_events(events: list[dict]) -> None:
     for event in events:
         _filter_by_keys(event, desired_keys)
 
-        if event.get("note"):
+        if "note" in event:
             # remove code blocks from notes
             event["note"] = _cleanup_event_note(event["note"])
 
-        if event.get("creator"):
+        if "creator" in event:
             creator_keys = ("name", "email")
             _filter_by_keys(event["creator"], creator_keys)
             if not event["creator"]:
@@ -93,7 +104,7 @@ def _parse_events(events: list[dict]) -> None:
                 del event["creator"]
 
 
-def get_incident(public_id):
+def get_incident(public_id: str) -> dict:
     api_path = f"/incidents"
     params = {"public_id": public_id}
     items = _get(api_path, params).get("items", [])
@@ -122,12 +133,46 @@ def get_incident(public_id):
     return incident
 
 
-if __name__ == "__main__":
+def main():
+    install(show_locals=True)
+
     if len(sys.argv) < 2:
         print(f"usage: {sys.argv[0]} <incident id>")
         sys.exit(1)
 
+    logging.basicConfig(
+        level="INFO",
+        format="%(message)s",
+        datefmt="[%X]",
+        handlers=[RichHandler(rich_tracebacks=True)]
+    )
+
+    console = Console()
+
     public_id = sys.argv[1]
-    output = json.dumps(get_incident(public_id), indent=2)
-    print(output)
-    print("chars: ", len(output))
+    console.log(f"Fetching incident <{public_id}> from WebRCA...")
+    incident = get_incident(public_id)
+    as_json = json.dumps(incident)
+    events = incident.get('events') or []
+    console.log(f"Success, num events: {len(events)}, processed size: {len(as_json)} chars")
+    console.log("Requesting LLM to summarize...")
+    start_time = time.perf_counter()
+    handler = llm_client.summarize(as_json)
+    time.sleep(0.1)
+    spinner = Spinner("aesthetic", text="[magenta]Waiting on LLM response... [/magenta]")
+    with console.status(spinner):
+        while not handler.done:
+            bytes_received = len(handler.content.encode('utf-8'))
+            spinner.update(text=f"[magenta]Waiting on LLM response... (bytes received: {bytes_received})[/magenta]")
+
+    end_time = time.perf_counter()
+    elapsed_time = end_time - start_time
+    console.log(f"Summary successfully generated (time elapsed: {elapsed_time:.4f} seconds)")
+
+    console.rule("AI-generated Summary")
+    md = Markdown(handler.content.strip())
+    console.print(md)
+
+
+if __name__ == "__main__":
+    main()

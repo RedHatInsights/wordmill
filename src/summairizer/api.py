@@ -5,13 +5,19 @@ from flask_restful import Resource
 from .llm import llm_client
 
 
-class SummairizeApi(Resource):
+class SummarizeApi(Resource):
     def post(self):
         document = request.get_json()
 
-        response = llm_client.summarize(document)
+        handler = llm_client.summarize(document)
 
-        return {"summary": response}, 200
+        while not handler.done:
+            time.sleep(0.1)
+
+        if handler.exception:
+            return {"error": "error generating summary"}, 500
+
+        return {"summary": handler.content}, 200
 
 
 class HealthCheckApi(Resource):
