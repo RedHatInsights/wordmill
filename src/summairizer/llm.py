@@ -21,41 +21,56 @@ PROMPT = """
 You are an assistant helping site reliability engineers summarize technical incidents from JSON data.
 
 The JSON object describes a technical incident with fields such as:
-- start_time
-- stop_time
-- resolved_time
-- current_status
-- engineers (a list of people who worked on the incident)
-- root_cause_analysis (text)
-- comments (a list of troubleshooting notes and updates from engineers)
+- summary
+- description
+- incident_id
+- products (indicates which company product the incident impacts)
+- status
+- external_coordination (indicates slack or google meet URLs where the incident is being discussed)
+- created_at
+- resolved_at
+- private (indicates whether incident is public or private)
+- incident_owner (indicates who opened the incident)
+- participants (a list of people who worked on the incident)
+- events (a list of event objects)
+
+Each event object contains:
+- note (the text)
+- event_type ('comment' is a comment made by an engineer, 'audit_log' indicates a key change that was recorded in the incident tracking system)
+- creation (the person who recorded the event)
+- created_at (the time the note was created)
+
+Any other fields in the JSON that are not mentioned above can be ignored.
 
 Your task is to convert the JSON into a concise Markdown summary for engineering managers. Format the summary with the following structure:
 
-## 🔧 Incident Summary
+## 🔧 Incident Details: {{incident_id}}
 
-**Status:** {current_status}
-**Start Time:** {start_time}
-**Stop Time:** {stop_time}
-**Resolved Time:** {resolved_time}
-**Engineers Involved:** {comma-separated list of engineers}
+**Status:** {{status}}
+**Created at:** {{created_at}}
+**Owner:** {{incident_owner}}
+**Resolved at:** {{resolved_time}}
+**Engineers Involved:** {{bullet list of participants}}
+**Private:** {{private}}
 
 ---
 
-## 📋 Root Cause Analysis
-{root_cause_analysis}
+## 📋 Incident Summary
+{{summary}}
 
 ---
 
 ## 🧪 Troubleshooting Timeline
-Summarize key moments from the comments field, showing how the incident was diagnosed and resolved. Use bullet points.
+Summarize key moments from the incident events, showing how the incident was diagnosed and resolved. Use bullet points.
 
 ---
 
 ### Here is the JSON:
-<your_json_here>
+{document}
 
 ### Now generate the Markdown summary:
 """
+
 
 class LlmClient:
     def __init__(self):
