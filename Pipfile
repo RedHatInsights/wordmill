@@ -11,6 +11,7 @@ openai = "*"
 python-dotenv = "*"
 rich = "*"
 flask-caching = "*"
+mdformat = "*"
 summairizer = {file = "."}
 
 [dev-packages]

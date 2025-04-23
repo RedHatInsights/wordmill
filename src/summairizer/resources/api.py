@@ -1,38 +1,61 @@
 import json
-import uuid
 import threading
 import time
-
-from flask import request, url_for
-from flask_restful import Resource
+import uuid
 
 from flask import current_app as app
+from flask import request
+from flask_restful import Resource
 
-from summairizer.llm import llm_client, LlmResponseHandler
 from summairizer.cache import cache
+from summairizer.llm import LlmResponseHandler, llm_client
+
+
+class PromptApi(Resource):
+    def get(self):
+        return {"prompt": cache.get("prompt")}, 200
+
+    def post(self):
+        data = request.get_json()
+        if "prompt" not in data:
+            return {"message": "prompt not provided"}, 400
+
+        prompt = str(data["prompt"])
+
+        if not prompt:
+            return {"message": "prompt is empty"}, 400
+
+        try:
+            llm_client.validate_prompt(prompt)
+        except ValueError as err:
+            return {"message": str(err)}, 400
+
+        cache.set("prompt", prompt)
+        return {"message": "prompt set"}, 200
 
 
 class SummaryApi(Resource):
     def get(self, id):
         summary_data = cache.get(id)
         if not summary_data:
-            return {"message": "not found"}, 404
+            resp = {"message": "not found"}
+            return resp, 404
 
-        response = {"id": id}
+        resp = {"id": id}
         if summary_data["exception"]:
-            response["status"] = "error"
+            resp["status"] = "error"
         elif summary_data["done"]:
-            response["status"] = "done"
+            resp["status"] = "done"
         else:
-            response["status"] = "inprogress"
+            resp["status"] = "inprogress"
 
         if summary_data["content"]:
-            response["bytes_received"] = len(summary_data["content"].encode('utf-8'))
+            resp["bytes_received"] = len(summary_data["content"].encode("utf-8"))
 
         if summary_data["done"]:
-            response["content"] = summary_data["content"]
+            resp["content"] = summary_data["content"]
 
-        return response, 200
+        return resp, 200
 
 
 def _handler_watcher(key: str, handler: LlmResponseHandler):
@@ -40,16 +63,20 @@ def _handler_watcher(key: str, handler: LlmResponseHandler):
         cache.set(key, handler.to_dict())
         time.sleep(0.1)
 
-    # set it one final time once done
+    # set it one final time once done to store final status
     cache.set(key, handler.to_dict())
 
 
 class SummarizeApi(Resource):
     def post(self):
-        document = request.get_json()
+        data = request.get_json()
+        if "document" not in data:
+            return {"message": "document not provided"}, 400
+
+        document = str(data["document"])
 
         key = str(uuid.uuid4())
-        handler = llm_client.summarize(document)
+        handler = llm_client.summarize(document, prompt=cache.get("prompt"))
 
         thread = threading.Thread(target=_handler_watcher, args=(key, handler))
         thread.daemon = True
@@ -60,4 +87,4 @@ class SummarizeApi(Resource):
 
 class HealthCheckApi(Resource):
     def get(self):
-        return {"message": "Summairize is running!"}, 200
+        return {"message": "summAIrize is running!"}, 200

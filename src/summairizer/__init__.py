@@ -4,8 +4,13 @@ from flask import Flask
 from flask_cors import CORS
 from flask_restful import Api
 
-from .resources.routes import initialize_routes
 from .cache import cache
+from .resources.routes import initialize_routes
+
+DEFAULT_PROMPT = (
+    "You are a helpful assistant. Write a summary for the following document using "
+    "markdown syntax:\n\n{document}"
+)
 
 
 def create_app():
@@ -19,6 +24,7 @@ def create_app():
     CORS(app)
 
     cache.init_app(app)
+    cache.set("prompt", DEFAULT_PROMPT)
 
     api = Api(app)
     initialize_routes(api)

@@ -1,23 +1,28 @@
-import requests
 import json
+import logging
 import os
-import sys
 import re
+import sys
 import time
 
-from rich.markdown import Markdown
+import mdformat
+import requests
 from rich.console import Console
-from rich.spinner import Spinner
 from rich.json import JSON
 from rich.logging import RichHandler
+from rich.markdown import Markdown
+from rich.spinner import Spinner
 from rich.traceback import install
 
 from summairizer.llm import llm_client
 
-import logging
-
-WEBRCA_V1_API_BASE_URL = os.environ.get("WEBRCA_V1_API_BASE_URL", "https://api.openshift.com/api/web-rca/v1").lstrip("/")
+WEBRCA_V1_API_BASE_URL = os.environ.get(
+    "WEBRCA_V1_API_BASE_URL", "https://api.openshift.com/api/web-rca/v1"
+).lstrip("/")
 WEBRCA_TOKEN = os.environ.get("WEBRCA_TOKEN")
+
+
+log = logging.getLogger(__name__)
 
 
 def _get(api_path: str, params: dict) -> dict:
@@ -59,7 +64,7 @@ def _parse_incident(incident: dict) -> None:
 
 def _cleanup_event_note(text: str) -> str:
     # make sure code block syntax is surrounded by newlines
-    text = re.sub('```', '\n```\n', text)
+    text = re.sub("```", "\n```\n", text)
 
     # remove dynatrace links, they are often really large
     text = re.sub(r"\S+http(s?):\/\/\S+dynatrace\S+", "[dynatrace url]", text)
@@ -135,42 +140,61 @@ def get_incident(public_id: str) -> dict:
 
 def main():
     install(show_locals=True)
+    console = Console()
 
     if len(sys.argv) < 2:
         print(f"usage: {sys.argv[0]} <incident id>")
         sys.exit(1)
 
+    public_id = sys.argv[1]
+
     logging.basicConfig(
         level="INFO",
         format="%(message)s",
         datefmt="[%X]",
-        handlers=[RichHandler(rich_tracebacks=True)]
+        handlers=[RichHandler(rich_tracebacks=True)],
     )
 
-    console = Console()
+    with open("summarize_webrca_incident_prompt.txt") as fp:
+        prompt = fp.read()
 
-    public_id = sys.argv[1]
-    console.log(f"Fetching incident <{public_id}> from WebRCA...")
+    log.info(f"Fetching incident <{public_id}> from WebRCA...")
     incident = get_incident(public_id)
     as_json = json.dumps(incident)
-    events = incident.get('events') or []
-    console.log(f"Success, num events: {len(events)}, processed size: {len(as_json)} chars")
-    console.log("Requesting LLM to summarize...")
+    events = incident.get("events") or []
+    log.info(
+        f"Success, num events: {len(events)}, processed size: {len(as_json)} chars"
+    )
+
+    log.info("Requesting LLM to summarize...")
+
     start_time = time.perf_counter()
-    handler = llm_client.summarize(as_json)
-    time.sleep(0.1)
-    spinner = Spinner("aesthetic", text="[magenta]Waiting on LLM response... [/magenta]")
+    handler = llm_client.summarize(as_json, prompt=prompt)
+    time.sleep(0.1)  # allow HTTP POST log to print before spinner
+    spinner = Spinner(
+        "aesthetic", text="[magenta]Waiting on LLM response... [/magenta]"
+    )
     with console.status(spinner):
         while not handler.done:
-            bytes_received = len(handler.content.encode('utf-8'))
-            spinner.update(text=f"[magenta]Waiting on LLM response... (bytes received: {bytes_received})[/magenta]")
-
+            bytes_received = len(handler.content.encode("utf-8"))
+            spinner.update(
+                text=f"[magenta]Waiting on LLM response... (bytes received: {bytes_received})[/magenta]"
+            )
     end_time = time.perf_counter()
     elapsed_time = end_time - start_time
-    console.log(f"Summary successfully generated (time elapsed: {elapsed_time:.4f} seconds)")
+    log.info(
+        f"Summary successfully generated (time elapsed: {elapsed_time:.4f} seconds)"
+    )
+
+    try:
+        md = mdformat.text(handler.content)
+    except Exception as err:
+        log.warning("mdformat failed: %s, markdown may contain syntax errors", err)
+        md = handler.content
+
+    md = Markdown(md)
 
     console.rule("AI-generated Summary")
-    md = Markdown(handler.content.strip())
     console.print(md)
 
 

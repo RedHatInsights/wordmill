@@ -1,8 +1,9 @@
 # summAIrizer
 
 This repo currently contains 2 components that are a work-in-progress:
-* a tool for summarizing web-rca incidents
-* an API service that will serve as a generic "summarizer tool" that can accept requests to summarize a document and reach out to the LLM to return generated content to the user
+
+- a tool for summarizing web-rca incidents
+- an API service that will serve as a generic "summarizer tool" that can accept requests to summarize a document and reach out to the LLM to return generated content to the user
 
 ## Setup
 
@@ -43,11 +44,7 @@ WEBRCA_TOKEN=$(ocm token) python summarize_webrca_incident.py ITN-2025-00094
 
 ## Running API server
 
-This project also contains a flask API server which can receive .json content and summarize it. This API is a work-in-progress.
-
-TODO items for the API service:
-* support different doc types
-* support changing prompts
+This project also contains a flask API server which can receive a document summarize it. This API is a work-in-progress.
 
 To run the server:
 
@@ -71,14 +68,21 @@ import json
 import requests
 import time
 
-
+# load the document you wish to summarize
 with open("incident.json") as fp:
     data = json.load(fp)
 
-id = requests.post("http://127.0.0.1:8000/summarize", json=data).json()["id"]
+# customize the prompt passed to the LLM (optional)
+requests.post(
+    "http://127.0.0.1:8000/prompt",
+    json={"prompt": "Please summarize this document:\n\n{document}"}
+)
 
+# submit request to summarize and get background task id
+id = requests.post("http://127.0.0.1:8000/summarize", json={"document": data}).json()["id"]
+
+# repeatedly check on the 'summarize' task and wait for summary to be generated...
 while True:
-    # wait for summary to be generated...
     time.sleep(5)
     summary = requests.get(f"http://127.0.0.1:8000/summary/{id}").json()
     if summary["status"] == "done":
