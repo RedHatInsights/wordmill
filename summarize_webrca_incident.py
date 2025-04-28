@@ -4,7 +4,9 @@ import os
 import re
 import sys
 import time
+from datetime import datetime, timezone
 
+import click
 import mdformat
 import requests
 from rich.console import Console
@@ -25,12 +27,35 @@ WEBRCA_TOKEN = os.environ.get("WEBRCA_TOKEN")
 log = logging.getLogger(__name__)
 
 
-def _get(api_path: str, params: dict) -> dict:
+def _get(api_path: str, params: dict = None) -> dict:
     url = f"{WEBRCA_V1_API_BASE_URL}{api_path}"
     headers = {"Authorization": f"Bearer {WEBRCA_TOKEN}"}
     response = requests.get(url, headers=headers, params=params)
     response.raise_for_status()
     return response.json()
+
+
+def _get_all_items(api_path: str, params: dict = None) -> dict:
+    items = []
+    page = 1
+    if not params:
+        params = {"page": page}
+
+    while True:
+        params["page"] = page
+        data = _get(api_path, params)
+        items.extend(data["items"])
+        log.debug(
+            "fetched page %d, fetched items %d, current items %d",
+            page,
+            len(items),
+            data["total"],
+        )
+        if len(items) >= data["total"]:
+            break
+        page += 1
+
+    return items
 
 
 def _filter_by_keys(d: dict, desired_keys: list[str]) -> None:
@@ -109,16 +134,12 @@ def _parse_events(events: list[dict]) -> None:
                 del event["creator"]
 
 
-def get_incident(public_id: str) -> dict:
-    api_path = f"/incidents"
-    params = {"public_id": public_id}
-    items = _get(api_path, params).get("items", [])
-
-    if not items:
-        raise ValueError(f"incident {public_id} not found")
-    incident = items[0]
+def _process_incident(incident: dict) -> dict:
+    public_id = incident["incident_id"]
+    log.info("Processing incident '%s' ...", public_id)
 
     incident_id = incident["id"]
+
     api_path = f"/incidents/{incident_id}/events"
     params = {
         "order_by": "occurred_at desc",
@@ -126,60 +147,71 @@ def get_incident(public_id: str) -> dict:
         "size": 999,
     }
 
-    _parse_incident(incident)
-
-    # TODO: handle pagination
-    events = _get(api_path, params).get("items", [])
+    log.info("Fetching events for incident '%s' ...", public_id)
+    events = _get_all_items(api_path, params)
     if events:
         _parse_events(events)
 
     incident["events"] = events
 
+    log.info("Incident '%s' num events: %d", public_id, len(events))
+
     return incident
 
 
-def main():
-    install(show_locals=True)
-    console = Console()
+def get_incident(public_id: str) -> dict:
+    log.info("Fetching incident '%s' from WebRCA...", public_id)
 
-    if len(sys.argv) < 2:
-        print(f"usage: {sys.argv[0]} <incident id>")
-        sys.exit(1)
+    api_path = f"/incidents"
+    params = {"public_id": public_id}
+    items = _get(api_path, params).get("items", [])
 
-    public_id = sys.argv[1]
+    if not items:
+        raise ValueError(f"incident {public_id} not found")
 
-    logging.basicConfig(
-        level="INFO",
-        format="%(message)s",
-        datefmt="[%X]",
-        handlers=[RichHandler(rich_tracebacks=True)],
-    )
+    incident = items[0]
 
-    with open("summarize_webrca_incident_prompt.txt") as fp:
-        prompt = fp.read()
+    return incident
 
-    log.info(f"Fetching incident <{public_id}> from WebRCA...")
-    incident = get_incident(public_id)
-    as_json = json.dumps(incident)
-    events = incident.get("events") or []
-    log.info(
-        f"Success, num events: {len(events)}, processed size: {len(as_json)} chars"
-    )
 
-    log.info("Requesting LLM to summarize...")
+def get_all_incidents() -> dict:
+    api_path = f"/incidents"
+    return _get_all_items(api_path)
 
-    start_time = time.perf_counter()
-    handler = llm_client.summarize(as_json, prompt=prompt)
+
+def _wait_with_spinner(console, handler):
     time.sleep(0.1)  # allow HTTP POST log to print before spinner
-    spinner = Spinner(
-        "aesthetic", text="[magenta]Waiting on LLM response... [/magenta]"
-    )
+    text = "[magenta]Waiting on LLM response... (bytes received: {bytes_received})[/magenta]"
+
+    spinner = Spinner("aesthetic", text=text.format(bytes_received=0))
     with console.status(spinner):
         while not handler.done:
             bytes_received = len(handler.content.encode("utf-8"))
-            spinner.update(
-                text=f"[magenta]Waiting on LLM response... (bytes received: {bytes_received})[/magenta]"
-            )
+            spinner.update(text=text.format(bytes_received=bytes_received))
+            time.sleep(0.1)
+
+
+def summarize_incident(prompt, incident, console=None):
+    incident = _process_incident(incident)
+    as_json = json.dumps(incident)
+
+    log.info(
+        "Requesting LLM to summarize... prompt size: %d chars, context size: %d chars",
+        len(prompt),
+        len(as_json),
+    )
+
+    start_time = time.perf_counter()
+    handler = llm_client.summarize(as_json, prompt=prompt)
+
+    if console:
+        _wait_with_spinner(console, handler)
+    else:
+        while not handler.done:
+            time.sleep(0.1)
+        bytes_received = len(handler.content.encode("utf-8"))
+        log.info("Summary generated, %d bytes received", bytes_received)
+
     end_time = time.perf_counter()
     elapsed_time = end_time - start_time
     log.info(
@@ -192,11 +224,57 @@ def main():
         log.warning("mdformat failed: %s, markdown may contain syntax errors", err)
         md = handler.content
 
-    md = Markdown(md)
+    return md
+
+
+def load_prompt():
+    with open("summarize_webrca_incident_prompt.txt") as fp:
+        return fp.read()
+
+
+@click.group()
+def cli():
+    install(show_locals=True)
+    logging.basicConfig(
+        level="INFO",
+        format="%(message)s",
+        datefmt="[%X]",
+        handlers=[RichHandler(rich_tracebacks=True)],
+    )
+
+
+@cli.command(help="generate summary for a single incident")
+@click.option(
+    "--id", required=True, help="incident public ID (example: ITN-2025-00096)"
+)
+def generate(id):
+    console = Console()
+
+    incident = get_incident(id)
+    summary_md = summarize_incident(load_prompt(), incident, console)
 
     console.rule("AI-generated Summary")
-    console.print(md)
+    console.print(summary_md)
+
+
+@cli.command(help="generate summaries for all incidents and update web-rca")
+def worker():
+    incidents = get_all_incidents()
+
+    for incident in incidents:
+        id = incident["id"]
+        updated_time = datetime.fromisoformat(incident["updated_at"])
+        ai_summary_updated_at = incident.get("ai_summary_updated_at")
+        if ai_summary_updated_at:
+            ai_summary_updated_time = datetime.fromisoformat(ai_summary_updated_at)
+        else:
+            ai_summary_updated_time = datetime.min.replace(tzinfo=timezone.utc)
+
+        if updated_time > ai_summary_updated_time:
+            log.debug("incident %s needs AI summary updated", id)
+        else:
+            log.debug("incident %s summary up-to-date")
 
 
 if __name__ == "__main__":
-    main()
+    cli()
