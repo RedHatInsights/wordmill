@@ -1,10 +1,11 @@
+import concurrent.futures
 import json
 import logging
 import os
 import re
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import click
 import mdformat
@@ -22,6 +23,8 @@ WEBRCA_V1_API_BASE_URL = os.environ.get(
     "WEBRCA_V1_API_BASE_URL", "https://api.openshift.com/api/web-rca/v1"
 ).lstrip("/")
 WEBRCA_TOKEN = os.environ.get("WEBRCA_TOKEN")
+LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
+MAX_WORKERS = int(os.environ.get("MAX_WORKERS", 1))
 
 
 log = logging.getLogger(__name__)
@@ -62,29 +65,6 @@ def _filter_by_keys(d: dict, desired_keys: list[str]) -> None:
     for key in list(d.keys()):
         if key not in desired_keys:
             del d[key]
-
-
-def _parse_incident(incident: dict) -> None:
-    desired_keys = (
-        "summary",
-        "description",
-        "incident_id",
-        "products",
-        "status",
-        "external_coordination",
-        "created_at",
-        "resolved_at",
-        "private",
-        "creator",
-        "incident_owner",
-        "participants",
-    )
-    _filter_by_keys(incident, desired_keys)
-    _filter_by_keys(incident["creator"], ("name",))
-    if "incident_owner" in incident:
-        _filter_by_keys(incident["incident_owner"], ("name",))
-    for participant in incident.get("participants", {}):
-        _filter_by_keys(participant, ("name",))
 
 
 def _cleanup_event_note(text: str) -> str:
@@ -134,6 +114,29 @@ def _parse_events(events: list[dict]) -> None:
                 del event["creator"]
 
 
+def _filter_keys(incident: dict) -> None:
+    desired_keys = (
+        "summary",
+        "description",
+        "incident_id",
+        "products",
+        "status",
+        "external_coordination",
+        "created_at",
+        "resolved_at",
+        "private",
+        "creator",
+        "incident_owner",
+        "participants",
+    )
+    _filter_by_keys(incident, desired_keys)
+    _filter_by_keys(incident["creator"], ("name",))
+    if "incident_owner" in incident:
+        _filter_by_keys(incident["incident_owner"], ("name",))
+    for participant in incident.get("participants", {}):
+        _filter_by_keys(participant, ("name",))
+
+
 def _process_incident(incident: dict) -> dict:
     public_id = incident["incident_id"]
     log.info("Processing incident '%s' ...", public_id)
@@ -146,6 +149,8 @@ def _process_incident(incident: dict) -> dict:
         "page": 1,
         "size": 999,
     }
+
+    _filter_keys(incident)
 
     log.info("Fetching events for incident '%s' ...", public_id)
     events = _get_all_items(api_path, params)
@@ -227,6 +232,42 @@ def summarize_incident(prompt, incident, console=None):
     return md
 
 
+def _get_incidents_to_update(max_days_since_update: int) -> list[dict]:
+    if max_days_since_update:
+        since_time = datetime.now(tz=timezone.utc) - timedelta(
+            days=max_days_since_update
+        )
+    else:
+        since_time = datetime.min.replace(tzinfo=timezone.utc)
+
+    incidents = get_all_incidents()
+
+    incidents_to_update = []
+
+    for incident in incidents:
+        id = incident["id"]
+        updated_time = datetime.fromisoformat(incident["updated_at"])
+        ai_summary_updated_at = incident.get("ai_summary_updated_at")
+        if ai_summary_updated_at:
+            ai_summary_updated_time = datetime.fromisoformat(ai_summary_updated_at)
+        else:
+            ai_summary_updated_time = datetime.min.replace(tzinfo=timezone.utc)
+
+        if updated_time < since_time:
+            log.debug(
+                "incident %s last updated more than %d days ago, skipping",
+                id,
+                max_days_since_update,
+            )
+        elif updated_time > ai_summary_updated_time:
+            log.debug("incident %s needs AI summary updated", id)
+            incidents_to_update.append(incident)
+        else:
+            log.debug("incident %s summary up-to-date")
+
+    return incidents_to_update
+
+
 def load_prompt():
     with open("summarize_webrca_incident_prompt.txt") as fp:
         return fp.read()
@@ -236,7 +277,7 @@ def load_prompt():
 def cli():
     install(show_locals=True)
     logging.basicConfig(
-        level="INFO",
+        level=LOG_LEVEL,
         format="%(message)s",
         datefmt="[%X]",
         handlers=[RichHandler(rich_tracebacks=True)],
@@ -258,22 +299,41 @@ def generate(id):
 
 
 @cli.command(help="generate summaries for all incidents and update web-rca")
-def worker():
-    incidents = get_all_incidents()
+@click.option(
+    "--since",
+    "max_days_since_update",
+    type=int,
+    help="summarize only if updated_at is less than N days old",
+)
+def worker(max_days_since_update):
+    incidents_to_update = _get_incidents_to_update(max_days_since_update)
+    prompt = load_prompt()
+    executor = concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS)
 
-    for incident in incidents:
-        id = incident["id"]
-        updated_time = datetime.fromisoformat(incident["updated_at"])
-        ai_summary_updated_at = incident.get("ai_summary_updated_at")
-        if ai_summary_updated_at:
-            ai_summary_updated_time = datetime.fromisoformat(ai_summary_updated_at)
-        else:
-            ai_summary_updated_time = datetime.min.replace(tzinfo=timezone.utc)
+    errors = 0
+    successes = 0
 
-        if updated_time > ai_summary_updated_time:
-            log.debug("incident %s needs AI summary updated", id)
+    future_to_incident = {}
+    for incident in incidents_to_update:
+        future = executor.submit(summarize_incident, prompt, incident)
+        future_to_incident[future] = incident["incident_id"]
+
+    for future in concurrent.futures.as_completed(future_to_incident):
+        incident_id = future_to_incident[future]
+        try:
+            future.result()
+        except Exception as exc:
+            log.error("summarization failed for incident %s", incident_id)
+            errors += 1
         else:
-            log.debug("incident %s summary up-to-date")
+            log.info("summarization successful for incident %s", incident_id)
+            successes += 1
+
+    log.info(
+        "incident summarization worker completed (%d errors, %d successes)",
+        errors,
+        successes,
+    )
 
 
 if __name__ == "__main__":
