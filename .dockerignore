@@ -1,0 +1,9 @@
+**
+
+!Pipfile
+!Pipfile.lock
+!pyproject.toml
+!summarize_webrca_incident_prompt.txt
+!summarize_webrca_incident.py
+!src/summairizer/*.py
+!src/summairizer/resources/*.py
