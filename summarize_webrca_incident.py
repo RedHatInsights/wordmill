@@ -38,6 +38,14 @@ def _get(api_path: str, params: dict = None) -> dict:
     return response.json()
 
 
+def _patch(api_path: str, json_data: dict) -> dict:
+    url = f"{WEBRCA_V1_API_BASE_URL}{api_path}"
+    headers = {"Authorization": f"Bearer {WEBRCA_TOKEN}"}
+    response = requests.patch(url, headers=headers, json=json_data)
+    response.raise_for_status()
+    return response.json()
+
+
 def _get_all_items(api_path: str, params: dict = None) -> dict:
     items = []
     page = 1
@@ -116,6 +124,7 @@ def _parse_events(events: list[dict]) -> None:
 
 def _filter_keys(incident: dict) -> None:
     desired_keys = (
+        "id",
         "summary",
         "description",
         "incident_id",
@@ -232,6 +241,14 @@ def summarize_incident(prompt, incident, console=None):
     return md
 
 
+def summarize_incident_and_update_webrca(prompt, incident, console=None):
+    summary_md = summarize_incident(prompt, incident, console)
+
+    incident_uuid = incident["id"]
+    api_path = f"/incidents/{incident_uuid}"
+    _patch(api_path, json_data={"ai_summary": summary_md})
+
+
 def _get_incidents_to_update(max_days_since_update: int) -> list[dict]:
     if max_days_since_update:
         since_time = datetime.now(tz=timezone.utc) - timedelta(
@@ -315,7 +332,7 @@ def worker(max_days_since_update):
 
     future_to_incident = {}
     for incident in incidents_to_update:
-        future = executor.submit(summarize_incident, prompt, incident)
+        future = executor.submit(summarize_incident_and_update_webrca, prompt, incident)
         future_to_incident[future] = incident["incident_id"]
 
     for future in concurrent.futures.as_completed(future_to_incident):
