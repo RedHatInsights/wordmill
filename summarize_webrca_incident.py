@@ -3,7 +3,7 @@ import json
 import logging
 import os
 import re
-import sys
+import threading
 import time
 from datetime import datetime, timedelta, timezone
 
@@ -11,9 +11,7 @@ import click
 import mdformat
 import requests
 from rich.console import Console
-from rich.json import JSON
 from rich.logging import RichHandler
-from rich.markdown import Markdown
 from rich.spinner import Spinner
 from rich.traceback import install
 
@@ -242,6 +240,8 @@ def summarize_incident(prompt, incident, console=None):
 
 
 def summarize_incident_and_update_webrca(prompt, incident, console=None):
+    threading.current_thread().name = incident["incident_id"]
+
     summary_md = summarize_incident(prompt, incident, console)
 
     incident_uuid = incident["id"]
@@ -295,7 +295,7 @@ def cli():
     install(show_locals=True)
     logging.basicConfig(
         level=LOG_LEVEL,
-        format="%(message)s",
+        format="(%(threadName)14s) %(message)s",
         datefmt="[%X]",
         handlers=[RichHandler(rich_tracebacks=True)],
     )
