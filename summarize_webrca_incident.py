@@ -32,6 +32,12 @@ def _get(api_path: str, params: dict = None) -> dict:
     url = f"{WEBRCA_V1_API_BASE_URL}{api_path}"
     headers = {"Authorization": f"Bearer {WEBRCA_TOKEN}"}
     response = requests.get(url, headers=headers, params=params)
+    log.debug(
+        'HTTP Request: GET %s "%d %s"',
+        url,
+        response.status_code,
+        response.reason,
+    )
     response.raise_for_status()
     return response.json()
 
@@ -40,6 +46,12 @@ def _patch(api_path: str, json_data: dict) -> dict:
     url = f"{WEBRCA_V1_API_BASE_URL}{api_path}"
     headers = {"Authorization": f"Bearer {WEBRCA_TOKEN}"}
     response = requests.patch(url, headers=headers, json=json_data)
+    log.debug(
+        'HTTP Request: PATCH %s "%d %s"',
+        url,
+        response.status_code,
+        response.reason,
+    )
     response.raise_for_status()
     return response.json()
 
@@ -293,6 +305,8 @@ def load_prompt():
 @click.group()
 def cli():
     install(show_locals=True)
+    httpx_logger = logging.getLogger("httpx")
+    httpx_logger.setLevel(logging.WARNING)
     logging.basicConfig(
         level=LOG_LEVEL,
         format="(%(threadName)14s) %(message)s",
@@ -340,7 +354,7 @@ def worker(max_days_since_update):
         try:
             future.result()
         except Exception:
-            log.error("summarization failed for incident %s", incident_id)
+            log.exception("summarization failed for incident %s", incident_id)
             errors += 1
         else:
             log.info("summarization successful for incident %s", incident_id)
