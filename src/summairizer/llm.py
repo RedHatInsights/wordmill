@@ -1,6 +1,5 @@
 import logging
 import os
-import uuid
 from concurrent.futures import ThreadPoolExecutor
 
 from dotenv import dotenv_values

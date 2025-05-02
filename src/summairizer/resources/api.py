@@ -1,9 +1,7 @@
-import json
 import threading
 import time
 import uuid
 
-from flask import current_app as app
 from flask import request
 from flask_restful import Resource
 

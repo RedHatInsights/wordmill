@@ -174,7 +174,7 @@ def _process_incident(incident: dict) -> dict:
 def get_incident(public_id: str) -> dict:
     log.info("Fetching incident '%s' from WebRCA...", public_id)
 
-    api_path = f"/incidents"
+    api_path = "/incidents"
     params = {"public_id": public_id}
     items = _get(api_path, params).get("items", [])
 
@@ -187,7 +187,7 @@ def get_incident(public_id: str) -> dict:
 
 
 def get_all_incidents() -> dict:
-    api_path = f"/incidents"
+    api_path = "/incidents"
     return _get_all_items(api_path)
 
 
@@ -339,7 +339,7 @@ def worker(max_days_since_update):
         incident_id = future_to_incident[future]
         try:
             future.result()
-        except Exception as exc:
+        except Exception:
             log.error("summarization failed for incident %s", incident_id)
             errors += 1
         else:
