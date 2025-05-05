@@ -10,6 +10,7 @@ from datetime import datetime, timedelta, timezone
 import click
 import mdformat
 import requests
+from keycloak import KeycloakOpenID
 from rich.console import Console
 from rich.logging import RichHandler
 from rich.spinner import Spinner
@@ -17,20 +18,60 @@ from rich.traceback import install
 
 from summairizer.llm import llm_client
 
+log = logging.getLogger(__name__)
+
+LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
+MAX_WORKERS = int(os.environ.get("MAX_WORKERS", 1))
 WEBRCA_V1_API_BASE_URL = os.environ.get(
     "WEBRCA_V1_API_BASE_URL", "https://api.openshift.com/api/web-rca/v1"
 ).lstrip("/")
 WEBRCA_TOKEN = os.environ.get("WEBRCA_TOKEN")
-LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
-MAX_WORKERS = int(os.environ.get("MAX_WORKERS", 1))
+
+SSO_AUTH_URL = os.environ.get("SSO_AUTH_URL", "https://sso.redhat.com/auth/")
+SSO_CLIENT_ID = os.environ.get("SSO_CLIENT_ID", "cloud-services")
+SSO_REALM_NAME = os.environ.get("SSO_REALM_NAME", "redhat-external")
+SSO_OFFLINE_TOKEN = os.environ.get("SSO_OFFLINE_TOKEN")
 
 
-log = logging.getLogger(__name__)
+class TokenManager:
+    def __init__(self):
+        self.access_token = None
+        self.expires_at = 0
+
+    def _get_new_token(self):
+        keycloak_openid = KeycloakOpenID(
+            server_url=SSO_AUTH_URL,
+            client_id=SSO_CLIENT_ID,
+            realm_name=SSO_REALM_NAME,
+        )
+
+        token = keycloak_openid.refresh_token(SSO_OFFLINE_TOKEN)
+        self.access_token = token["access_token"]
+        self.expires_at = time.time() + token["expires_in"]
+        return self.access_token
+
+    def get_access_token(self):
+        if WEBRCA_TOKEN:
+            return WEBRCA_TOKEN
+
+        elif not SSO_OFFLINE_TOKEN:
+            raise ValueError(
+                "missing 1 of the following required environment vars: WEBRCA_TOKEN, SSO_OFFLINE_TOKEN"
+            )
+
+        if not self.access_token or time.time() - 180 > self.expires_at:
+            return self._get_new_token()
+
+        return self.access_token
+
+
+token_manager = TokenManager()
 
 
 def _get(api_path: str, params: dict = None) -> dict:
     url = f"{WEBRCA_V1_API_BASE_URL}{api_path}"
-    headers = {"Authorization": f"Bearer {WEBRCA_TOKEN}"}
+    token = token_manager.get_access_token()
+    headers = {"Authorization": f"Bearer {token}"}
     response = requests.get(url, headers=headers, params=params)
     log.debug(
         'HTTP Request: GET %s "%d %s"',
@@ -44,7 +85,8 @@ def _get(api_path: str, params: dict = None) -> dict:
 
 def _patch(api_path: str, json_data: dict) -> dict:
     url = f"{WEBRCA_V1_API_BASE_URL}{api_path}"
-    headers = {"Authorization": f"Bearer {WEBRCA_TOKEN}"}
+    token = token_manager.get_access_token()
+    headers = {"Authorization": f"Bearer {token}"}
     response = requests.patch(url, headers=headers, json=json_data)
     log.debug(
         'HTTP Request: PATCH %s "%d %s"',
