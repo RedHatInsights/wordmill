@@ -16,7 +16,7 @@ from rich.logging import RichHandler
 from rich.spinner import Spinner
 from rich.traceback import install
 
-from summairizer.llm import llm_client
+from wordmill.llm import llm_client
 
 log = logging.getLogger(__name__)
 

@@ -3,9 +3,9 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "summairizer"
+name = "wordmill"
 version = "0.0.1"
-description = "Summarizer"
+description = "A document summary tool"
 readme = "README.md"
 requires-python = ">=3.12"
 

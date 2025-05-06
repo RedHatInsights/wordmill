@@ -12,7 +12,7 @@ python-dotenv = "*"
 rich = "*"
 flask-caching = "*"
 mdformat = "*"
-summairizer = {file = "."}
+wordmill = {file = "."}
 click = "*"
 python-keycloak = "*"
 
@@ -20,7 +20,7 @@ python-keycloak = "*"
 pytest = "*"
 ruff = "*"
 pre-commit = "*"
-summairizer = {editable = true, path = "."}
+wordmill = {editable = true, path = "."}
 flake8 = "*"
 ipython = "*"
 requests = "*"

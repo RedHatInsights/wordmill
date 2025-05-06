@@ -14,7 +14,7 @@ DEFAULT_PROMPT = (
 
 
 def create_app():
-    app = Flask("summairizer")
+    app = Flask("wordmill")
 
     app_logger = logging.getLogger("werkzeug")
     app_logger.setLevel(logging.DEBUG)

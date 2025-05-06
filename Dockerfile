@@ -9,7 +9,7 @@ USER 1001
 RUN pip install -U pip setuptools pipenv && \
     pipenv install --system --deploy
 
-ENV FLASK_APP="summairizer"
+ENV FLASK_APP="wordmill"
 
 EXPOSE 8000
 

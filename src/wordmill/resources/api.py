@@ -5,8 +5,8 @@ import uuid
 from flask import request
 from flask_restful import Resource
 
-from summairizer.cache import cache
-from summairizer.llm import LlmResponseHandler, llm_client
+from wordmill.cache import cache
+from wordmill.llm import LlmResponseHandler, llm_client
 
 
 class PromptApi(Resource):
@@ -85,4 +85,4 @@ class SummarizeApi(Resource):
 
 class HealthCheckApi(Resource):
     def get(self):
-        return {"message": "summAIrize is running!"}, 200
+        return {"message": "wordmill is running!"}, 200
