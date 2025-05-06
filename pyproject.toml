@@ -9,11 +9,11 @@ description = "Document summarization API service"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "flask"
-    "flask-restful"
-    "flask-cors"
-    "openai"
-    "python-dotenv"
+    "flask",
+    "flask-restful",
+    "flask-cors",
+    "openai",
+    "python-dotenv",
     "flask-caching"
 ]
 license-files = ["LICENSE"]
