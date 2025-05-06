@@ -1,4 +1,9 @@
-# summAIrizer
+# wordmill
+
+wordmill is a document summary API service. It provides a simple REST API which accepts requests to summarize a document. Under the hood, it reaches out to a LLM hosted on any OpenAI-compatible API service.
+
+It is designed to abstract away the "AI" details from your user base. Many people in your organization want to summarize documents. Not as many of them care to know all the details related to LLMs, prompts, document prep, model selection, etc. The service will allow administrators to configure and customize these aspects based on the incoming document type. All the end users need to do is request a summary.
+
 
 This repo currently contains 2 components that are a work-in-progress:
 
