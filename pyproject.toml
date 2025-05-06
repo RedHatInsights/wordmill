@@ -4,10 +4,19 @@ build-backend = "hatchling.build"
 
 [project]
 name = "wordmill"
-version = "0.0.1"
+version = "0.0.2"
 description = "Document summarization API service"
 readme = "README.md"
 requires-python = ">=3.12"
+dependencies = [
+    "flask"
+    "flask-restful"
+    "flask-cors"
+    "openai"
+    "python-dotenv"
+    "flask-caching"
+]
+license-files = ["LICENSE"]
 
 [project.urls]
 Homepage = "https://github.com/RedHatInsights/wordmill"
