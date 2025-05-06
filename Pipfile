@@ -9,12 +9,8 @@ flask-restful = "*"
 flask-cors = "*"
 openai = "*"
 python-dotenv = "*"
-rich = "*"
 flask-caching = "*"
-mdformat = "*"
 wordmill = {file = "."}
-click = "*"
-python-keycloak = "*"
 
 [dev-packages]
 pytest = "*"
@@ -24,6 +20,9 @@ wordmill = {editable = true, path = "."}
 flake8 = "*"
 ipython = "*"
 requests = "*"
+setuptools = "*"
+hatchling = "*"
+twine = "*"
 
 [requires]
 python_version = "3.12"

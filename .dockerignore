@@ -3,7 +3,5 @@
 !Pipfile
 !Pipfile.lock
 !pyproject.toml
-!summarize_webrca_incident_prompt.txt
-!summarize_webrca_incident.py
 !src/wordmill/*.py
 !src/wordmill/resources/*.py

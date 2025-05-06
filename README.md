@@ -1,14 +1,10 @@
 # wordmill
 
+A work-in-progress.
+
 wordmill is a document summary API service. It provides a simple REST API which accepts requests to summarize a document. Under the hood, it reaches out to a LLM hosted on any OpenAI-compatible API service.
 
 It is designed to abstract away the "AI" details from your user base. Many people in your organization want to summarize documents. Not as many of them care to know all the details related to LLMs, prompts, document prep, model selection, etc. The service will allow administrators to configure and customize these aspects based on the incoming document type. All the end users need to do is request a summary.
-
-
-This repo currently contains 2 components that are a work-in-progress:
-
-- a tool for summarizing web-rca incidents
-- an API service that will serve as a generic "summarizer tool" that can accept requests to summarize a document and reach out to the LLM to return generated content to the user
 
 ## Setup
 
@@ -26,30 +22,11 @@ This repo currently contains 2 components that are a work-in-progress:
 
    ```text
    LLM_API_KEY=<your key>
-   LLM_BASE_URL="https://mistral-7b-instruct-v0-3-maas-apicast-production.apps.prod.rhoai.rh-aiservices-bu.com:443/v1"
+   LLM_BASE_URL="https://my-llm-server:443/v1"
    LLM_MODEL_NAME="mistral-7b-instruct"
    ```
 
-## Running summarize_webrca_incident CLI script
-
-This script reaches out directly to WebRCA to fetch incident info, then it passes JSON to the LLM for summarization.
-
-TODO: Eventually, the code from this will be used to summarize all WebRCA incidents and store them in the web-rca DB.
-
-1. Install [OCM CLI](https://github.com/openshift-online/ocm-cli)
-
-2. Authenticate with OCM: `ocm login --use-auth-code`
-
-3. Run script for a given incident ID:
-
-```shell
-pipenv shell
-WEBRCA_TOKEN=$(ocm token) python summarize_webrca_incident.py ITN-2025-00094
-```
-
 ## Running API server
-
-This project also contains a flask API server which can receive a document summarize it. This API is a work-in-progress.
 
 To run the server:
 
@@ -62,11 +39,9 @@ flask run
 
 The service accepts a request to summarize the document and returns a URL that you should visit to check the status of your summary.
 
-A background task reaches out to the LLM and awaits the response. Eventually, the status of your summarize task will shift to 'done'
-and you can view the LLM-generated content. Your task may also shift to 'error' if something went wrong.
+A background task reaches out to the LLM and awaits the response. Eventually, the status of your summarize task will shift to 'done' and you can view the LLM-generated content. Your task may also shift to 'error' if something went wrong.
 
-Since these summaries do not need to be long-lived, currently we are using flask-caching's "SimpleCache" to store the data. For production purposes,
-the cache service used by flask-caching will need to be changed to redis or memcached
+Since these summaries do not need to be long-lived, currently we are using flask-caching's "SimpleCache" to store the data. For production purposes, the cache service used by flask-caching will need to be changed to redis or memcached
 
 ```python
 import json
