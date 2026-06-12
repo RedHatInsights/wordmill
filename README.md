@@ -1,24 +1,36 @@
 # wordmill
 
-A work-in-progress.
+A document summarization API service. It provides a simple REST API that accepts requests to
+summarize a document. Under the hood, it reaches out to an LLM hosted on any OpenAI-compatible API
+service.
 
-wordmill is a document summary API service. It provides a simple REST API which accepts requests to summarize a document. Under the hood, it reaches out to a LLM hosted on any OpenAI-compatible API service.
+Wordmill abstracts away the "AI" details from your user base. Many people in your organization want
+to summarize documents. Not as many of them care to know all the details related to LLMs, prompts,
+document prep, model selection, etc. The service allows administrators to configure and customize
+these aspects based on the incoming document type. All the end users need to do is request a summary.
 
-It is designed to abstract away the "AI" details from your user base. Many people in your organization want to summarize documents. Not as many of them care to know all the details related to LLMs, prompts, document prep, model selection, etc. The service will allow administrators to configure and customize these aspects based on the incoming document type. All the end users need to do is request a summary.
+## Prerequisites
 
-## Setup
+- Python 3.12+
+- [pyenv][pyenv] (recommended)
+- [Pipenv][pipenv]
+- Access to an OpenAI-compatible LLM API endpoint
 
-1. It is recommended to [install pyenv](https://github.com/pyenv/pyenv?tab=readme-ov-file#installation).
+## Installation
 
-     NOTE: Make sure to follow all steps! (A, B, C, D, and so on)
+1. Install pyenv (recommended) and ensure Python 3.12 is available:
 
-2. Set up the virtual environment:
+   ```shell
+   pyenv install 3.12
+   ```
 
-    ```shell
-    pipenv install --dev
-    ```
+2. Install dependencies:
 
-3. Add your LLM access info into `.env`, example:
+   ```shell
+   pipenv install --dev
+   ```
+
+3. Create a `.env` file with your LLM access credentials:
 
    ```text
    LLM_API_KEY=<your key>
@@ -26,22 +38,35 @@ It is designed to abstract away the "AI" details from your user base. Many peopl
    LLM_MODEL_NAME="mistral-7b-instruct"
    ```
 
-## Running API server
+## Running
 
-To run the server:
+Start the API server:
 
 ```shell
 pipenv shell
 flask run
 ```
 
-## Example Usage of the API server
+The server runs on `http://0.0.0.0:8000` by default (configured in `.flaskenv`).
 
-The service accepts a request to summarize the document and returns a URL that you should visit to check the status of your summary.
+## API Endpoints
 
-A background task reaches out to the LLM and awaits the response. Eventually, the status of your summarize task will shift to 'done' and you can view the LLM-generated content. Your task may also shift to 'error' if something went wrong.
+| Method | Path | Description |
+| ------ | ---- | ----------- |
+| `POST` | `/summarize` | Submit a document for summarization (returns task ID) |
+| `GET` | `/summary/<id>` | Poll for summary status and result |
+| `GET` | `/prompt` | Retrieve the current LLM prompt |
+| `POST` | `/prompt` | Update the LLM prompt |
+| `GET` | `/health` | Health check |
 
-Since these summaries do not need to be long-lived, currently we are using flask-caching's "SimpleCache" to store the data. For production purposes, the cache service used by flask-caching will need to be changed to redis or memcached
+### Example Usage
+
+The service accepts a request to summarize a document and returns a task ID. A background task
+reaches out to the LLM and streams the response. Poll the summary endpoint until the status shifts
+to `done` (or `error` if something went wrong).
+
+Summaries are stored in an in-memory cache (`SimpleCache`) and are not persisted across restarts.
+For production use, the cache backend should be changed to Redis or Memcached.
 
 ```python
 import json
@@ -69,3 +94,47 @@ while True:
         print(summary["content"])
         break
 ```
+
+## Container
+
+Build and run with Docker:
+
+```shell
+docker build -t wordmill .
+docker run -p 8000:8000 \
+  -e LLM_API_KEY="<your key>" \
+  -e LLM_BASE_URL="https://my-llm-server:443/v1" \
+  -e LLM_MODEL_NAME="mistral-7b-instruct" \
+  wordmill
+```
+
+The image is based on `registry.access.redhat.com/ubi9/python-312` and runs as a non-root user
+(UID 1001), suitable for OpenShift deployments.
+
+## Development
+
+### Setup
+
+```shell
+pipenv install --dev
+pipenv shell
+```
+
+### Dev Dependencies
+
+The project includes `ruff` and `flake8` as dev dependencies for linting, and `pytest` for testing.
+Note that no test files or linter configurations currently exist in the repository.
+
+### Architecture
+
+For internal design details — concurrency model, caching strategy, LLM integration, and key
+tradeoffs — see the [architecture document][architecture].
+
+## License
+
+This project is licensed under the [Apache License 2.0][license].
+
+[pyenv]: https://github.com/pyenv/pyenv?tab=readme-ov-file#installation
+[pipenv]: https://pipenv.pypa.io/
+[architecture]: ./ARCHITECTURE.md
+[license]: ./LICENSE
