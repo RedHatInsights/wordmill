@@ -3,5 +3,7 @@
 !Pipfile
 !Pipfile.lock
 !pyproject.toml
+!README.md
+!LICENSE
 !src/wordmill/*.py
 !src/wordmill/resources/*.py

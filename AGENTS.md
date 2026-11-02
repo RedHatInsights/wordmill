@@ -4,8 +4,8 @@
 
 Wordmill is a document summarization REST API built with Flask. It accepts documents via HTTP,
 delegates summarization to an OpenAI-compatible LLM endpoint, and returns results asynchronously
-via a polling interface. It is distributed as a Python package on PyPI and as a UBI9-based container
-image.
+via a polling interface. It is distributed as a Python package on PyPI and as a container image
+built from the Red Hat Hardened Images (distroless `hi/python:3.12`).
 
 ## Dependencies
 
@@ -83,9 +83,12 @@ The project is published to PyPI via trusted OIDC publishing on tag push (see
 `.github/workflows/release.yml`). Artifacts are signed with Sigstore and attached to GitHub
 Releases.
 
-A `Dockerfile` is provided for container builds, based on `registry.access.redhat.com/ubi9/python-312`.
-The container runs as non-root (UID 1001) and is OpenShift-compatible. LLM credentials must be
-injected as environment variables at runtime.
+A multi-stage `Dockerfile` is provided for container builds, based on the Red Hat Hardened Images
+(`registry.access.redhat.com/hi/python`): the `3.12-builder` stage installs the application and
+locked dependencies, and the distroless `3.12` runtime stage carries only those packages. Both base
+images are pinned by digest. The runtime image has no shell or package manager, runs as non-root
+(UID 65532), and is OpenShift-compatible. LLM credentials must be injected as environment variables
+at runtime.
 
 [readme-dev]: ./README.md#development
 [architecture]: ./ARCHITECTURE.md
