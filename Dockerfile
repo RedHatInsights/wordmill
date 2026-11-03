@@ -1,6 +1,6 @@
 # Build stage: install the application and its locked dependencies into the
 # system site-packages of the hardened Python builder image.
-FROM registry.access.redhat.com/hi/python:3.12-builder@sha256:c55affa058c7b287a8083bd4193d37e9880666f5c659376b4e9fba4613c1fd68 AS build
+FROM registry.access.redhat.com/hi/python:3.15-builder@sha256:0f1e045db12ce181ff15ac036156225816394e2e76e3c87f51ff61596924f098 AS build
 USER 0
 WORKDIR /opt/app-root/src
 COPY Pipfile Pipfile.lock pyproject.toml README.md LICENSE ./
@@ -16,7 +16,7 @@ RUN pip install --no-cache-dir --target /opt/tools pipenv && \
     python3 -c "import importlib.util; assert importlib.util.find_spec('wordmill'), 'wordmill package failed to install'"
 
 # Runtime stage: distroless Python image, no shell or package manager.
-FROM registry.access.redhat.com/hi/python:3.12@sha256:1380d71b2b879853102bc4e6d06e32ae786c398a3e7a6475b7159f6cadc3798b
+FROM registry.access.redhat.com/hi/python:3.15@sha256:a8241403eb7003db09cd13f0e0e1aad672c3d0bad0a39cf36d2b3c7ee7b70879
 # The runtime image's sys.path includes /usr/local/lib/python3.12/site-packages
 # but not /usr/local/lib64/..., so pure-Python and binary packages are both
 # copied into that directory.
