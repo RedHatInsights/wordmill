@@ -108,8 +108,11 @@ docker run -p 8000:8000 \
   wordmill
 ```
 
-The image is based on `registry.access.redhat.com/ubi9/python-312` and runs as a non-root user
-(UID 1001), suitable for OpenShift deployments.
+The image is built from the Red Hat Hardened Images (`registry.access.redhat.com/hi/python`)
+using a multi-stage build: the `3.12-builder` image installs the application and its locked
+dependencies, and the distroless `3.12` runtime image carries only the installed packages. Both
+base images are pinned by digest. The runtime image has no shell or package manager and runs as a
+non-root user (UID 65532), suitable for OpenShift deployments.
 
 ## Development
 
